@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NÓOS — Buscador Científico</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --surface2: #13131f;
+    --border: #1e1e30;
+    --accent: #7c6aff;
+    --accent2: #ff6ab0;
+    --accent3: #6affda;
+    --text: #e8e6f0;
+    --text-dim: #7a7890;
+    --text-muted: #3a3850;
+    --glow: rgba(124, 106, 255, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Crimson Pro', Georgia, serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  .cursor {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    transition: transform 0.1s;
+    mix-blend-mode: screen;
+  }
+  .cursor-ring {
+    width: 32px; height: 32px;
+    border: 1px solid rgba(124,106,255,0.4);
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 9998;
+    transition: all 0.12s ease;
+  }
+
+  /* Background noise + grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124,106,255,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(255,106,176,0.06) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(124,106,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    padding: 60px 0 20px;
+    text-align: center;
+    animation: fadeDown 0.8s ease both;
+  }
+
+  .logo-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .logo-icon {
+    width: 42px; height: 42px;
+    position: relative;
+  }
+
+  .logo-icon svg {
+    width: 100%; height: 100%;
+    filter: drop-shadow(0 0 12px var(--accent));
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.8rem, 6vw, 4.2rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 70%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+
+  .tagline {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  /* Sources badges */
+  .sources-bar {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 20px 0 40px;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .source-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    background: var(--surface);
+    transition: all 0.2s;
+  }
+
+  .source-badge.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,106,255,0.08);
+    box-shadow: 0 0 12px rgba(124,106,255,0.15);
+  }
+
+  /* Search area */
+  .search-area {
+    animation: fadeUp 0.8s 0.3s ease both;
+    margin-bottom: 50px;
+  }
+
+  .search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .search-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-right: none;
+    color: var(--text);
+    font-family: 'Crimson Pro', serif;
+    font-size: 1.2rem;
+    font-weight: 300;
+    padding: 18px 24px;
+    outline: none;
+    transition: all 0.3s;
+    border-radius: 2px 0 0 2px;
+  }
+
+  .search-input::placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent);
+    background: var(--surface2);
+    box-shadow: -4px 0 20px rgba(124,106,255,0.1), inset 0 0 0 1px rgba(124,106,255,0.1);
+  }
+
+  .search-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 18px 28px;
+    cursor: none;
+    border-radius: 0 2px 2px 0;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .search-btn:hover {
+    background: #9580ff;
+    box-shadow: 0 0 30px rgba(124,106,255,0.4);
+  }
+
+  .search-btn:active { transform: scale(0.98); }
+
+  /* Filter chips */
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-dim);
+    background: transparent;
+    cursor: none;
+    transition: all 0.2s;
+  }
+
+  .filter-chip:hover, .filter-chip.on {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(255,106,176,0.07);
+  }
+
+  .filter-section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 18px 0 8px;
+  }
+
+  .filter-chip.sci-chip {
+    border-color: rgba(106,255,218,0.2);
+    color: rgba(106,255,218,0.6);
+  }
+
+  .filter-chip.sci-chip:hover, .filter-chip.sci-chip.on {
+    border-color: var(--accent3);
+    color: var(--accent3);
+    background: rgba(106,255,218,0.07);
+    box-shadow: 0 0 12px rgba(106,255,218,0.15);
+  }
+
+  .filter-chip.dark-chip {
+    border-color: #2a1a2a;
+    color: #9a6aaa;
+  }
+
+  .filter-chip.dark-chip:hover, .filter-chip.dark-chip.on {
+    border-color: #c084d0;
+    color: #e0aaff;
+    background: rgba(160,80,200,0.12);
+    box-shadow: 0 0 12px rgba(160,80,200,0.2);
+  }
+
+  /* Results */
+  #results {
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .results-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .results-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .results-count span {
+    color: var(--accent3);
+    font-weight: 500;
+  }
+
+  .sort-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 24px 28px;
+    margin-bottom: 12px;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+    animation: slideIn 0.4s ease both;
+  }
+
+  .result-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .result-card:hover {
+    border-color: rgba(124,106,255,0.3);
+    background: var(--surface2);
+    transform: translateX(4px);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.3), -4px 0 20px rgba(124,106,255,0.05);
+  }
+
+  .result-card:hover::before { opacity: 1; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 10px;
+  }
+
+  .card-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    min-width: 24px;
+    padding-top: 4px;
+  }
+
+  .card-source {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .src-pubmed { background: rgba(106,255,218,0.1); color: var(--accent3); border: 1px solid rgba(106,255,218,0.2); }
+  .src-arxiv { background: rgba(124,106,255,0.1); color: var(--accent); border: 1px solid rgba(124,106,255,0.2); }
+  .src-semantic { background: rgba(255,106,176,0.1); color: var(--accent2); border: 1px solid rgba(255,106,176,0.2); }
+  .src-core { background: rgba(255,200,106,0.1); color: #ffc86a; border: 1px solid rgba(255,200,106,0.2); }
+  .src-europe { background: rgba(106,200,255,0.1); color: #6ac8ff; border: 1px solid rgba(106,200,255,0.2); }
+
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.4;
+    margin-bottom: 8px;
+    flex: 1;
+  }
+
+  .card-title a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .card-title a:hover { color: var(--accent); }
+
+  .card-authors {
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .card-abstract {
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    font-weight: 300;
+  }
+
+  .card-footer {
+    display: flex;
+    gap: 16px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .card-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .card-meta .dot {
+    width: 3px; height: 3px;
+    background: var(--text-muted);
+    border-radius: 50%;
+  }
+
+  .card-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--accent);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    margin-left: auto;
+    transition: all 0.2s;
+    padding: 4px 10px;
+    border: 1px solid rgba(124,106,255,0.3);
+    border-radius: 2px;
+  }
+
+  .card-link:hover {
+    background: rgba(124,106,255,0.1);
+    box-shadow: 0 0 12px rgba(124,106,255,0.2);
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 24px 28px;
+    margin-bottom: 12px;
+    animation: pulse 1.5s ease infinite;
+  }
+
+  .skel-line {
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 10px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Empty / error state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    filter: grayscale(0.5);
+  }
+
+  .empty-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .empty-sub {
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+  }
+
+  /* Hero state */
+  .hero-state {
+    text-align: center;
+    padding: 20px 0 60px;
+  }
+
+  .hero-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 28px;
+  }
+
+  .suggestion-pill {
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.9rem;
+    font-style: italic;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    color: var(--text-dim);
+    cursor: none;
+    transition: all 0.2s;
+    background: var(--surface);
+  }
+
+  .suggestion-pill:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: rgba(124,106,255,0.08);
+    transform: translateY(-2px);
+  }
+
+  .hero-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Loading spinner */
+  .spinner-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 0;
+    gap: 20px;
+  }
+
+  .spinner {
+    width: 40px; height: 40px;
+    border: 1px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .spinner-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    animation: fadeUp 0.5s ease;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    text-align: center;
+    padding: 50px 0 30px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    position: relative;
+    z-index: 1;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    .search-box { flex-direction: column; }
+    .search-input { border-right: 1px solid var(--border); border-radius: 2px; border-bottom: none; }
+    .search-btn { border-radius: 0 0 2px 2px; width: 100%; }
+    .card-top { flex-wrap: wrap; }
+  }
+
+  /* ── CORE Key Bar ── */
+  .core-key-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 18px;
+    margin-bottom: 20px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  .core-key-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.63rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  .core-key-input {
+    flex: 1;
+    min-width: 160px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    padding: 7px 12px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .core-key-input:focus { border-color: var(--accent3); }
+
+  .core-key-btn {
+    background: transparent;
+    border: 1px solid var(--accent3);
+    color: var(--accent3);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    padding: 7px 14px;
+    border-radius: 2px;
+    cursor: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .core-key-btn:hover {
+    background: rgba(106,255,218,0.08);
+    box-shadow: 0 0 12px rgba(106,255,218,0.15);
+  }
+
+  .core-key-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--accent3);
+    letter-spacing: 0.1em;
+    min-width: 60px;
+  }
+
+  /* ── Login Screen ── */
+  #loginScreen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  #loginScreen::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(124,106,255,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 20% 80%, rgba(255,106,176,0.07) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 48px 44px;
+    width: 100%;
+    max-width: 400px;
+    position: relative;
+    z-index: 1;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .login-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 70%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  .login-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .login-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .login-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Crimson Pro', serif;
+    font-size: 1.1rem;
+    padding: 14px 18px;
+    outline: none;
+    border-radius: 2px;
+    transition: all 0.3s;
+    letter-spacing: 0.12em;
+  }
+
+  .login-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(124,106,255,0.1);
+  }
+
+  .login-btn {
+    width: 100%;
+    background: var(--accent);
+    border: none;
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 16px;
+    cursor: none;
+    border-radius: 2px;
+    margin-top: 16px;
+    transition: all 0.2s;
+  }
+
+  .login-btn:hover {
+    background: #9580ff;
+    box-shadow: 0 0 30px rgba(124,106,255,0.35);
+  }
+
+  .login-error {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent2);
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-top: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    min-height: 20px;
+  }
+
+  .login-error.show { opacity: 1; }
+
+  .login-hint {
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.82rem;
+    font-style: italic;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 24px;
+  }
+
+  #mainApp { display: none; }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- Login Screen -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">NÓOS</div>
+    <p class="login-sub">Acceso Privado</p>
+    <label class="login-label" for="passInput">Contraseña</label>
+    <input 
+      type="password" 
+      class="login-input" 
+      id="passInput" 
+      placeholder="••••••••"
+      autocomplete="off"
+    />
+    <button class="login-btn" onclick="doLogin()">Entrar →</button>
+    <p class="login-error" id="loginError">Contraseña incorrecta</p>
+    <p class="login-hint">Tu buscador científico privado</p>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="mainApp">
+<div class="container">
+
+  <header>
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="21" cy="21" r="20" stroke="#7c6aff" stroke-width="0.8" opacity="0.5"/>
+          <circle cx="21" cy="21" r="14" stroke="#7c6aff" stroke-width="0.5" opacity="0.3"/>
+          <path d="M21 6 C14 6, 8 13, 8 21 C8 29, 14 36, 21 36" stroke="#7c6aff" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M21 6 C28 6, 34 13, 34 21 C34 29, 28 36, 21 36" stroke="#ff6ab0" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="21" cy="21" r="3" fill="#7c6aff" opacity="0.8"/>
+          <line x1="21" y1="6" x2="21" y2="36" stroke="#6affda" stroke-width="0.5" opacity="0.3"/>
+          <line x1="6" y1="21" x2="36" y2="21" stroke="#6affda" stroke-width="0.5" opacity="0.3"/>
+        </svg>
+      </div>
+      <h1>NÓOS</h1>
+    </div>
+    <p class="tagline">Explorador de Ciencia Psicológica & Médica</p>
+  </header>
+
+  <div class="sources-bar">
+    <span class="source-badge active">PubMed</span>
+    <span class="source-badge active">Semantic Scholar</span>
+    <span class="source-badge active">Europe PMC</span>
+    <span class="source-badge active">OpenAlex</span>
+    <span class="source-badge active" id="coreBadge" style="border-color:var(--accent3);color:var(--accent3);">CORE ✓</span>
+  </div>
+
+  <!-- CORE key activa -->
+
+  <div class="search-area">
+    <div class="search-box">
+      <input 
+        type="text" 
+        class="search-input" 
+        id="searchInput"
+        placeholder="¿cómo afecta el trauma infantil al desarrollo cerebral?…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button class="search-btn" id="searchBtn" onclick="doSearch()">
+        Investigar →
+      </button>
+    </div>
+    <div class="filter-section-label">⬡ Psicología & Mente</div>
+    <div class="filter-row">
+      <button class="filter-chip on" data-filter="psychology">Psicología General</button>
+      <button class="filter-chip on" data-filter="neuroscience brain">Neurociencia</button>
+      <button class="filter-chip on" data-filter="psychiatry mental health">Psiquiatría</button>
+      <button class="filter-chip" data-filter="social psychology behavior">Psicología Social</button>
+      <button class="filter-chip" data-filter="clinical psychology therapy">Clínica</button>
+      <button class="filter-chip" data-filter="cognitive psychology memory">Cognitiva</button>
+      <button class="filter-chip" data-filter="neuropsychology">Neuropsicología</button>
+      <button class="filter-chip" data-filter="developmental psychology childhood">Desarrollo</button>
+      <button class="filter-chip" data-filter="positive psychology resilience wellbeing">Psicología Positiva</button>
+      <button class="filter-chip" data-filter="addiction substance abuse psychology">Adicciones</button>
+      <button class="filter-chip" data-filter="sleep psychology memory consolidation">Sueño & Memoria</button>
+      <button class="filter-chip" data-filter="trauma PTSD stress disorder">Trauma & PTSD</button>
+    </div>
+    <div class="filter-section-label">🌑 Psicología Oscura</div>
+    <div class="filter-row">
+      <button class="filter-chip dark-chip" data-filter="dark triad narcissism machiavellianism psychopathy">Tríada Oscura</button>
+      <button class="filter-chip dark-chip" data-filter="psychological manipulation coercive control">Manipulación</button>
+      <button class="filter-chip dark-chip" data-filter="criminal psychology antisocial forensic">Psicología Criminal</button>
+      <button class="filter-chip dark-chip" data-filter="propaganda mass persuasion influence covert">Influencia & Propaganda</button>
+      <button class="filter-chip dark-chip" data-filter="emotional abuse gaslighting narcissistic">Abuso Emocional</button>
+      <button class="filter-chip dark-chip" data-filter="pornography adolescents minors exposure effects">Pornografía & Menores</button>
+      <button class="filter-chip dark-chip" data-filter="radicalization extremism psychology">Radicalización</button>
+      <button class="filter-chip dark-chip" data-filter="cult mind control sect psychology">Sectas & Control Mental</button>
+      <button class="filter-chip dark-chip" data-filter="serial killer psychopathy violence neuroscience">Asesinos en Serie</button>
+      <button class="filter-chip dark-chip" data-filter="human trafficking psychological impact victims">Trata de Personas</button>
+      <button class="filter-chip dark-chip" data-filter="cyberbullying online harassment psychological effects">Ciberacoso</button>
+      <button class="filter-chip dark-chip" data-filter="eating disorder body image media adolescents">Trastornos Alimentarios</button>
+    </div>
+    <div class="filter-section-label">🔬 Ciencia & Sociedad</div>
+    <div class="filter-row">
+      <button class="filter-chip sci-chip" data-filter="epigenetics mental health hereditary">Epigenética</button>
+      <button class="filter-chip sci-chip" data-filter="microbiome gut brain mental health">Microbioma & Cerebro</button>
+      <button class="filter-chip sci-chip" data-filter="gender differences psychology brain">Diferencias de Género</button>
+      <button class="filter-chip sci-chip" data-filter="poverty socioeconomic mental health brain">Pobreza & Psicología</button>
+      <button class="filter-chip sci-chip" data-filter="social media depression anxiety youth">Redes Sociales & Salud</button>
+      <button class="filter-chip sci-chip" data-filter="loneliness isolation health effects">Soledad & Aislamiento</button>
+      <button class="filter-chip sci-chip" data-filter="psychedelics therapy depression MDMA psilocybin">Psicodélicos & Terapia</button>
+      <button class="filter-chip sci-chip" data-filter="meditation mindfulness neuroscience brain">Meditación & Cerebro</button>
+      <button class="filter-chip sci-chip" data-filter="consciousness altered states perception">Conciencia</button>
+      <button class="filter-chip sci-chip" data-filter="artificial intelligence psychology behavior human">IA & Comportamiento</button>
+    </div>
+  </div>
+
+  <div id="results">
+    <div class="hero-state">
+      <p class="hero-label">Búsquedas sugeridas</p>
+      <div class="hero-suggestions" id="suggestions">
+        <span class="suggestion-pill" onclick="setQuery(this)">pornography exposure adolescents brain development effects</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">psychopathy neuroscience brain structure differences</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">cult mind control psychological techniques coercive</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">dark triad narcissism workplace manipulation</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">psilocybin therapy depression clinical trials 2024</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">trauma infantil desarrollo cerebral consecuencias</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">social media algorithm addiction dopamine adolescents</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">gaslighting long term psychological effects victims</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">human trafficking survivor PTSD psychology</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">radicalization online extremism psychological profile</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">microbioma intestinal ansiedad depresión conexión</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">epigenetics childhood adversity mental health hereditary</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /mainApp -->
+<footer>
+  NÓOS — Buscador Científico &nbsp;·&nbsp; Fuentes: <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank">PubMed</a>, <a href="https://www.semanticscholar.org" target="_blank">Semantic Scholar</a>, <a href="https://europepmc.org" target="_blank">Europe PMC</a>, <a href="https://openalex.org" target="_blank">OpenAlex</a>, <a href="https://core.ac.uk" target="_blank">CORE</a>
+</footer>
+
+<script>
+// Cursor
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+let mx = 0, my = 0, rx = 0, ry = 0;
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx - 4 + 'px';
+  cursor.style.top = my - 4 + 'px';
+});
+function animRing() {
+  rx += (mx - rx) * 0.15;
+  ry += (my - ry) *.15;
+  ring.style.left = rx - 16 + 'px';
+  ring.style.top = ry - 16 + 'px';
+  requestAnimationFrame(animRing);
+}
+animRing();
+
+// Filter chips
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('on'));
+});
+
+// Set query from suggestion
+function setQuery(el) {
+  document.getElementById('searchInput').value = el.textContent;
+  doSearch();
+}
+
+// Enter key
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+// Source map
+const sourceMap = {
+  pubmed: 'src-pubmed',
+  semantic: 'src-semantic',
+  europe: 'src-europe',
+  openalex: 'src-arxiv',
+  core: 'src-core'
+};
+
+const sourceLabel = {
+  pubmed: 'PubMed',
+  semantic: 'Semantic Scholar',
+  europe: 'Europe PMC',
+  openalex: 'OpenAlex',
+  core: 'CORE'
+};
+
+function showLoading() {
+  const r = document.getElementById('results');
+  const msgs = ['Consultando PubMed, Semantic Scholar…', 'Explorando OpenAlex — 200M+ estudios…', 'Buscando lo que nadie encuentra…', 'Analizando estudios relevantes…'];
+  let i = 0;
+  r.innerHTML = `
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <div class="spinner-text" id="loadMsg">${msgs[0]}</div>
+    </div>`;
+  return setInterval(() => {
+    i = (i + 1) % msgs.length;
+    const m = document.getElementById('loadMsg');
+    if (m) m.textContent = msgs[i];
+  }, 1200);
+}
+
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  const activeFilters = [...document.querySelectorAll('.filter-chip.on')].map(c => c.dataset.filter);
+  const filterStr = activeFilters.length ? activeFilters.join(', ') : 'psicología, medicina';
+
+  const loadInterval = showLoading();
+
+  // Run all searches in parallel
+  const [pubmedResults, semanticResults, europeResults, openalexResults, coreResults] = await Promise.allSettled([
+    searchPubMed(query, filterStr),
+    searchSemantic(query, filterStr),
+    searchEurope(query, filterStr),
+    searchOpenAlex(query, filterStr),
+    searchCORE(query, filterStr),
+  ]);
+
+  clearInterval(loadInterval);
+
+  let allResults = [];
+
+  if (pubmedResults.status === 'fulfilled') allResults.push(...pubmedResults.value);
+  if (semanticResults.status === 'fulfilled') allResults.push(...semanticResults.value);
+  if (europeResults.status === 'fulfilled') allResults.push(...europeResults.value);
+  if (openalexResults.status === 'fulfilled') allResults.push(...openalexResults.value);
+  if (coreResults.status === 'fulfilled') allResults.push(...coreResults.value);
+
+  // Sort by year desc, then cited
+  allResults.sort((a, b) => (b.year || 0) - (a.year || 0));
+
+  // Take top 10
+  allResults = allResults.slice(0, 10);
+
+  renderResults(allResults, query);
+}
+
+// ── PubMed ──────────────────────────────────────────────
+async function searchPubMed(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} AND (${filters.split(',').map(f => f.trim() + '[MeSH Terms]').join(' OR ')})`);
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query + ' ' + filters)}&retmax=6&sort=relevance&retmode=json`;
+    const res = await fetch(searchUrl);
+    const data = await res.json();
+    const ids = data.esearchresult?.idlist || [];
+    if (!ids.length) return [];
+
+    const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json`;
+    const sumRes = await fetch(summaryUrl);
+    const sumData = await sumRes.json();
+    const result = sumData.result;
+
+    return ids.map(id => {
+      const item = result[id];
+      if (!item) return null;
+      const authors = (item.authors || []).slice(0, 3).map(a => a.name).join(', ');
+      return {
+        source: 'pubmed',
+        title: item.title || 'Sin título',
+        authors: authors + (item.authors?.length > 3 ? ' et al.' : ''),
+        abstract: item.sorttitle || '',
+        year: item.pubdate ? parseInt(item.pubdate) : null,
+        journal: item.source || '',
+        link: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+        citations: null
+      };
+    }).filter(Boolean);
+  } catch(e) { return []; }
+}
+
+// ── Semantic Scholar ─────────────────────────────────────
+async function searchSemantic(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${q}&limit=5&fields=title,authors,abstract,year,citationCount,externalIds,venue`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.data || []).map(p => {
+      const doi = p.externalIds?.DOI;
+      const pmid = p.externalIds?.PubMed;
+      const link = doi ? `https://doi.org/${doi}` : pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : `https://www.semanticscholar.org/paper/${p.paperId}`;
+      return {
+        source: 'semantic',
+        title: p.title || 'Sin título',
+        authors: (p.authors || []).slice(0, 3).map(a => a.name).join(', ') + ((p.authors?.length > 3) ? ' et al.' : ''),
+        abstract: p.abstract ? p.abstract.slice(0, 220) + '…' : '',
+        year: p.year,
+        journal: p.venue || '',
+        link,
+        citations: p.citationCount
+      };
+    });
+  } catch(e) { return []; }
+}
+
+// ── Europe PMC ───────────────────────────────────────────
+async function searchEurope(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${q}&resultType=core&pageSize=5&format=json&sort=relevance`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.resultList?.result || []).map(p => ({
+      source: 'europe',
+      title: p.title || 'Sin título',
+      authors: p.authorString ? p.authorString.slice(0, 60) + (p.authorString.length > 60 ? '…' : '') : '',
+      abstract: p.abstractText ? p.abstractText.slice(0, 220) + '…' : '',
+      year: p.pubYear ? parseInt(p.pubYear) : null,
+      journal: p.journalTitle || '',
+      link: p.doi ? `https://doi.org/${p.doi}` : `https://europepmc.org/article/${p.source}/${p.id}`,
+      citations: p.citedByCount || null
+    }));
+  } catch(e) { return []; }
+}
+
+// ── OpenAlex (200M+ papers, deepest coverage) ────────────
+async function searchOpenAlex(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const url = `https://api.openalex.org/works?search=${q}&per-page=5&sort=relevance_score:desc&filter=concepts.display_name:Psychology|concepts.display_name:Medicine|concepts.display_name:Psychiatry&mailto=noos@research.app`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.results || []).map(p => {
+      const doi = p.doi ? p.doi.replace('https://doi.org/', '') : null;
+      const link = p.doi || (p.primary_location?.landing_page_url) || `https://openalex.org/${p.id}`;
+      const authors = (p.authorships || []).slice(0, 3).map(a => a.author?.display_name).filter(Boolean).join(', ');
+      return {
+        source: 'openalex',
+        title: p.title || 'Sin título',
+        authors: authors + ((p.authorships?.length > 3) ? ' et al.' : ''),
+        abstract: p.abstract_inverted_index ? rebuildAbstract(p.abstract_inverted_index, 220) : '',
+        year: p.publication_year,
+        journal: p.primary_location?.source?.display_name || '',
+        link,
+        citations: p.cited_by_count
+      };
+    });
+  } catch(e) { return []; }
+}
+
+function rebuildAbstract(invertedIndex, maxChars) {
+  try {
+    const words = {};
+    for (const [word, positions] of Object.entries(invertedIndex)) {
+      positions.forEach(pos => words[pos] = word);
+    }
+    const text = Object.keys(words).sort((a,b) => a-b).map(k => words[k]).join(' ');
+    return text.slice(0, maxChars) + (text.length > maxChars ? '…' : '');
+  } catch(e) { return ''; }
+}
+
+// ── CORE API ─────────────────────────────────────────────
+const CORE_API_KEY = 'QzlaLeKGEV9xcimpkCqnBNfTZUJFgt6d';
+
+function getCoreKey() {
+  return sessionStorage.getItem('noos_core_key') || CORE_API_KEY;
+}
+
+function saveCoreKey() {
+  const input = document.getElementById('coreKeyInput');
+  const status = document.getElementById('coreKeyStatus');
+  if (!input) return;
+  const key = input.value.trim();
+  if (!key) return;
+  sessionStorage.setItem('noos_core_key', key);
+  if (status) status.textContent = '✓ Activa';
+  input.value = '';
+}
+
+async function searchCORE(query, filters) {
+  const key = getCoreKey();
+  if (!key) return [];
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const url = `https://api.core.ac.uk/v3/search/works?q=${q}&limit=5&sort=relevance`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.results || []).map(p => ({
+      source: 'core',
+      title: p.title || 'Sin título',
+      authors: (p.authors || []).slice(0, 3).map(a => a.name).filter(Boolean).join(', ') + ((p.authors?.length > 3) ? ' et al.' : ''),
+      abstract: p.abstract ? p.abstract.slice(0, 220) + '…' : '',
+      year: p.yearPublished || null,
+      journal: p.journals?.[0]?.title || p.publisher || '',
+      link: p.doi ? `https://doi.org/${p.doi}` : p.downloadUrl || `https://core.ac.uk/works/${p.id}`,
+      citations: null
+    }));
+  } catch(e) { return []; }
+}
+
+// ── Render ───────────────────────────────────────────────
+function renderResults(results, query) {
+  const r = document.getElementById('results');
+
+  if (!results.length) {
+    r.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔬</div>
+        <p class="empty-title">Sin resultados encontrados</p>
+        <p class="empty-sub">Intenta reformular tu búsqueda o usa términos en inglés para mayor alcance.</p>
+      </div>`;
+    return;
+  }
+
+  let html = `
+    <div class="results-meta">
+      <div class="results-count">
+        <span>${results.length}</span> estudios encontrados para "${query}"
+      </div>
+      <div class="sort-label">ordenado por relevancia & año</div>
+    </div>`;
+
+  results.forEach((item, i) => {
+    const delay = i * 0.06;
+    const srcClass = sourceMap[item.source] || 'src-pubmed';
+    const srcName = sourceLabel[item.source] || item.source;
+    const yearStr = item.year ? `${item.year}` : '—';
+    const citeStr = item.citations != null ? `${item.citations.toLocaleString()} citas` : '';
+    const journalStr = item.journal ? `${item.journal}` : '';
+
+    html += `
+      <div class="result-card" style="animation-delay: ${delay}s">
+        <div class="card-top">
+          <span class="card-number">${String(i + 1).padStart(2, '0')}</span>
+          <div style="flex:1">
+            <p class="card-title"><a href="${item.link}" target="_blank" rel="noopener">${item.title}</a></p>
+            ${item.authors ? `<p class="card-authors">${item.authors}</p>` : ''}
+            ${item.abstract ? `<p class="card-abstract">${item.abstract}</p>` : ''}
+          </div>
+          <span class="card-source ${srcClass}">${srcName}</span>
+        </div>
+        <div class="card-footer">
+          ${yearStr !== '—' ? `<span class="card-meta">${yearStr}</span>` : ''}
+          ${journalStr ? `<span class="card-meta"><span class="dot"></span>${journalStr}</span>` : ''}
+          ${citeStr ? `<span class="card-meta"><span class="dot"></span>${citeStr}</span>` : ''}
+          <a href="${item.link}" target="_blank" rel="noopener" class="card-link">Ver estudio →</a>
+        </div>
+      </div>`;
+  });
+
+  r.innerHTML = html;
+}
+
+// ── Login ────────────────────────────────────────────────
+const PASS_HASH = 'e74fd321cff3191f8b54efc9e418b27d1088a27e08af65c6274a47cbdbb2edde';
+
+async function hashPassword(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const val = document.getElementById('passInput').value;
+  const hash = await hashPassword(val);
+  if (hash === PASS_HASH) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    sessionStorage.setItem('noos_auth', '1');
+  } else {
+    const err = document.getElementById('loginError');
+    err.classList.add('show');
+    document.getElementById('passInput').value = '';
+    document.getElementById('passInput').focus();
+    setTimeout(() => err.classList.remove('show'), 3000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('noos_auth') === '1') {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+  }
+  document.getElementById('passInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+</script>
+</body>
+</html>
