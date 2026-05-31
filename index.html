@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NÓOS — Buscador Científico</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --surface2: #13131f;
+    --border: #1e1e30;
+    --accent: #7c6aff;
+    --accent2: #ff6ab0;
+    --accent3: #6affda;
+    --text: #e8e6f0;
+    --text-dim: #7a7890;
+    --text-muted: #3a3850;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Crimson Pro',Georgia,serif; min-height:100vh; overflow-x:hidden; cursor:none; }
+
+  .cursor { width:8px; height:8px; background:var(--accent); border-radius:50%; position:fixed; pointer-events:none; z-index:9999; mix-blend-mode:screen; }
+  .cursor-ring { width:32px; height:32px; border:1px solid rgba(124,106,255,0.4); border-radius:50%; position:fixed; pointer-events:none; z-index:9998; transition:all 0.12s ease; }
+
+  body::before { content:''; position:fixed; inset:0; background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(124,106,255,0.12) 0%,transparent 60%),radial-gradient(ellipse 40% 30% at 80% 80%,rgba(255,106,176,0.06) 0%,transparent 50%); pointer-events:none; z-index:0; }
+  body::after { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(124,106,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(124,106,255,0.03) 1px,transparent 1px); background-size:60px 60px; pointer-events:none; z-index:0; }
+
+  .container { max-width:900px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+
+  header { padding:60px 0 20px; text-align:center; animation:fadeDown 0.8s ease both; }
+  .logo-wrap { display:inline-flex; align-items:center; gap:14px; margin-bottom:12px; }
+  .logo-icon { width:42px; height:42px; }
+  .logo-icon svg { width:100%; height:100%; filter:drop-shadow(0 0 12px var(--accent)); }
+  h1 { font-family:'Playfair Display',serif; font-size:clamp(2.8rem,6vw,4.2rem); font-weight:900; letter-spacing:-0.02em; background:linear-gradient(135deg,#fff 30%,var(--accent) 70%,var(--accent2) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1; }
+  .tagline { font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--text-dim); letter-spacing:0.25em; text-transform:uppercase; margin-top:8px; }
+
+  .sources-bar { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin:20px 0 36px; animation:fadeUp 0.8s 0.2s ease both; }
+  .source-badge { font-family:'DM Mono',monospace; font-size:0.62rem; letter-spacing:0.1em; padding:4px 10px; border:1px solid var(--border); border-radius:2px; color:var(--text-dim); background:var(--surface); }
+  .source-badge.active { border-color:var(--accent); color:var(--accent); background:rgba(124,106,255,0.08); box-shadow:0 0 10px rgba(124,106,255,0.15); }
+
+  .search-area { animation:fadeUp 0.8s 0.3s ease both; margin-bottom:50px; }
+  .search-box { display:flex; align-items:center; }
+  .search-input { width:100%; background:var(--surface); border:1px solid var(--border); border-right:none; color:var(--text); font-family:'Crimson Pro',serif; font-size:1.2rem; font-weight:300; padding:18px 24px; outline:none; transition:all 0.3s; border-radius:2px 0 0 2px; }
+  .search-input::placeholder { color:var(--text-muted); font-style:italic; }
+  .search-input:focus { border-color:var(--accent); background:var(--surface2); box-shadow:-4px 0 20px rgba(124,106,255,0.1); }
+  .search-btn { background:var(--accent); border:none; color:white; font-family:'DM Mono',monospace; font-size:0.72rem; letter-spacing:0.15em; text-transform:uppercase; padding:18px 28px; cursor:pointer; border-radius:0 2px 2px 0; transition:all 0.2s; white-space:nowrap; }
+  .search-btn:hover { background:#9580ff; box-shadow:0 0 30px rgba(124,106,255,0.4); }
+  .search-btn:active { transform:scale(0.98); }
+
+  .filter-section-label { font-family:'DM Mono',monospace; font-size:0.62rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-muted); margin:18px 0 8px; }
+  .filter-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+
+  .filter-chip { font-family:'DM Mono',monospace; font-size:0.63rem; letter-spacing:0.08em; padding:5px 12px; border:1px solid var(--border); border-radius:20px; color:var(--text-dim); background:transparent; cursor:pointer; transition:all 0.2s; }
+  .filter-chip:hover, .filter-chip.on { border-color:var(--accent2); color:var(--accent2); background:rgba(255,106,176,0.07); }
+
+  .filter-chip.sci-chip { border-color:rgba(106,255,218,0.2); color:rgba(106,255,218,0.6); }
+  .filter-chip.sci-chip:hover, .filter-chip.sci-chip.on { border-color:var(--accent3); color:var(--accent3); background:rgba(106,255,218,0.07); }
+
+  .filter-chip.dark-chip { border-color:#2a1a2a; color:#9a6aaa; }
+  .filter-chip.dark-chip:hover, .filter-chip.dark-chip.on { border-color:#c084d0; color:#e0aaff; background:rgba(160,80,200,0.12); }
+
+  .filter-chip.abuse-chip { border-color:#2a1515; color:#aa6a6a; }
+  .filter-chip.abuse-chip:hover, .filter-chip.abuse-chip.on { border-color:#ff8080; color:#ffb0b0; background:rgba(255,80,80,0.08); }
+
+  .filter-chip.controversial-chip { border-color:#1a1a2a; color:#7a7aaa; }
+  .filter-chip.controversial-chip:hover, .filter-chip.controversial-chip.on { border-color:#8080ff; color:#c0c0ff; background:rgba(80,80,255,0.08); }
+
+  #results { animation:fadeUp 0.5s ease both; }
+  .results-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+  .results-count { font-family:'DM Mono',monospace; font-size:0.7rem; color:var(--text-dim); letter-spacing:0.1em; }
+  .results-count span { color:var(--accent3); font-weight:500; }
+  .sort-label { font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--text-muted); letter-spacing:0.1em; }
+
+  .result-card { background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:22px 26px; margin-bottom:12px; transition:all 0.25s; position:relative; overflow:hidden; animation:slideIn 0.4s ease both; }
+  .result-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--accent),var(--accent2)); opacity:0; transition:opacity 0.2s; }
+  .result-card:hover { border-color:rgba(124,106,255,0.3); background:var(--surface2); transform:translateX(4px); box-shadow:0 4px 30px rgba(0,0,0,0.3); }
+  .result-card:hover::before { opacity:1; }
+
+  .card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:10px; }
+  .card-number { font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--text-muted); min-width:24px; padding-top:4px; }
+  .card-source { font-family:'DM Mono',monospace; font-size:0.6rem; letter-spacing:0.12em; text-transform:uppercase; padding:3px 8px; border-radius:2px; white-space:nowrap; }
+
+  .src-pubmed   { background:rgba(106,255,218,0.1); color:var(--accent3);  border:1px solid rgba(106,255,218,0.2); }
+  .src-europe   { background:rgba(106,200,255,0.1); color:#6ac8ff;          border:1px solid rgba(106,200,255,0.2); }
+  .src-openalex { background:rgba(124,106,255,0.1); color:var(--accent);    border:1px solid rgba(124,106,255,0.2); }
+  .src-crossref { background:rgba(255,200,106,0.1); color:#ffc86a;          border:1px solid rgba(255,200,106,0.2); }
+  .src-arxiv    { background:rgba(255,106,176,0.1); color:var(--accent2);   border:1px solid rgba(255,106,176,0.2); }
+  .src-doaj     { background:rgba(106,255,150,0.1); color:#6aff96;          border:1px solid rgba(106,255,150,0.2); }
+  .src-eric     { background:rgba(255,180,80,0.1);  color:#ffb450;          border:1px solid rgba(255,180,80,0.2); }
+  .src-psyarxiv { background:rgba(200,106,255,0.1); color:#c86aff;          border:1px solid rgba(200,106,255,0.2); }
+  .src-unpaywall{ background:rgba(80,255,180,0.1);  color:#50ffb4;          border:1px solid rgba(80,255,180,0.2); }
+  .src-base     { background:rgba(255,150,80,0.1);  color:#ff9650;          border:1px solid rgba(255,150,80,0.2); }
+  .src-ssrn     { background:rgba(128,192,255,0.1); color:#80c0ff;          border:1px solid rgba(128,192,255,0.2); }
+  .src-whoiris  { background:rgba(255,170,255,0.1); color:#ffaaff;          border:1px solid rgba(255,170,255,0.2); }
+  .src-dart     { background:rgba(170,255,170,0.1); color:#aaffaa;          border:1px solid rgba(170,255,170,0.2); }
+
+  .card-title { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:700; color:var(--text); line-height:1.4; margin-bottom:6px; flex:1; }
+  .card-title a { color:inherit; text-decoration:none; transition:color 0.2s; }
+  .card-title a:hover { color:var(--accent); }
+  .card-authors { font-family:'Crimson Pro',serif; font-size:0.85rem; font-style:italic; color:var(--text-dim); margin-bottom:8px; }
+  .card-abstract { font-family:'Crimson Pro',serif; font-size:0.93rem; color:var(--text-dim); line-height:1.65; font-weight:300; }
+
+  .card-footer { display:flex; gap:14px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); align-items:center; flex-wrap:wrap; }
+  .card-meta { font-family:'DM Mono',monospace; font-size:0.6rem; color:var(--text-muted); letter-spacing:0.08em; display:flex; align-items:center; gap:5px; }
+  .card-meta .dot { width:3px; height:3px; background:var(--text-muted); border-radius:50%; }
+  .card-link { font-family:'DM Mono',monospace; font-size:0.6rem; color:var(--accent); text-decoration:none; letter-spacing:0.1em; margin-left:auto; transition:all 0.2s; padding:4px 10px; border:1px solid rgba(124,106,255,0.3); border-radius:2px; }
+  .card-link:hover { background:rgba(124,106,255,0.1); }
+
+  .spinner-wrap { display:flex; flex-direction:column; align-items:center; padding:60px 0; gap:20px; }
+  .spinner { width:40px; height:40px; border:1px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  .spinner-text { font-family:'DM Mono',monospace; font-size:0.68rem; color:var(--text-muted); letter-spacing:0.2em; }
+
+  .empty-state { text-align:center; padding:60px 20px; }
+  .empty-icon { font-size:3rem; margin-bottom:16px; }
+  .empty-title { font-family:'Playfair Display',serif; font-size:1.4rem; color:var(--text-dim); margin-bottom:8px; }
+  .empty-sub { font-family:'Crimson Pro',serif; font-size:0.95rem; color:var(--text-muted); }
+
+  .hero-state { text-align:center; padding:20px 0 60px; }
+  .hero-label { font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase; margin-bottom:12px; }
+  .hero-suggestions { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:28px; }
+  .suggestion-pill { font-family:'Crimson Pro',serif; font-size:0.9rem; font-style:italic; padding:8px 16px; border:1px solid var(--border); border-radius:30px; color:var(--text-dim); cursor:pointer; transition:all 0.2s; background:var(--surface); }
+  .suggestion-pill:hover { border-color:var(--accent); color:var(--text); background:rgba(124,106,255,0.08); transform:translateY(-2px); }
+
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)}  to{opacity:1;transform:translateY(0)} }
+  @keyframes slideIn  { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes spin     { to{transform:rotate(360deg)} }
+
+  footer { text-align:center; padding:50px 0 30px; font-family:'DM Mono',monospace; font-size:0.6rem; color:var(--text-muted); letter-spacing:0.1em; position:relative; z-index:1; }
+  footer a { color:var(--accent); text-decoration:none; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+
+  @media (hover:none) and (pointer:coarse) { body{cursor:auto} .cursor,.cursor-ring{display:none} }
+  @media (max-width:600px) {
+    .search-box{flex-direction:column}
+    .search-input{border-right:1px solid var(--border);border-radius:2px;border-bottom:none}
+    .search-btn{border-radius:0 0 2px 2px;width:100%}
+    .card-top{flex-wrap:wrap}
+  }
+
+  /* Login */
+  #loginScreen { position:fixed; inset:0; background:var(--bg); z-index:1000; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+  #loginScreen::before { content:''; position:fixed; inset:0; background-image:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(124,106,255,0.15) 0%,transparent 60%),radial-gradient(ellipse 40% 30% at 20% 80%,rgba(255,106,176,0.07) 0%,transparent 50%); pointer-events:none; }
+  .login-box { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:48px 44px; width:100%; max-width:400px; position:relative; z-index:1; animation:fadeDown 0.7s ease both; }
+  .login-logo { font-family:'Playfair Display',serif; font-size:2.4rem; font-weight:900; background:linear-gradient(135deg,#fff 30%,var(--accent) 70%,var(--accent2) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; text-align:center; margin-bottom:6px; }
+  .login-sub { font-family:'DM Mono',monospace; font-size:0.62rem; color:var(--text-muted); letter-spacing:0.22em; text-transform:uppercase; text-align:center; margin-bottom:36px; }
+  .login-label { font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--text-dim); letter-spacing:0.15em; text-transform:uppercase; display:block; margin-bottom:8px; }
+  .login-input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Crimson Pro',serif; font-size:1.1rem; padding:14px 18px; outline:none; border-radius:2px; transition:all 0.3s; letter-spacing:0.12em; }
+  .login-input:focus { border-color:var(--accent); box-shadow:0 0 20px rgba(124,106,255,0.1); }
+  .login-btn { width:100%; background:var(--accent); border:none; color:white; font-family:'DM Mono',monospace; font-size:0.72rem; letter-spacing:0.18em; text-transform:uppercase; padding:16px; cursor:pointer; border-radius:2px; margin-top:16px; transition:all 0.2s; }
+  .login-btn:hover { background:#9580ff; box-shadow:0 0 30px rgba(124,106,255,0.35); }
+  .login-error { font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--accent2); letter-spacing:0.1em; text-align:center; margin-top:14px; opacity:0; transition:opacity 0.3s; min-height:20px; }
+  .login-error.show { opacity:1; }
+  .login-hint { font-family:'Crimson Pro',serif; font-size:0.82rem; font-style:italic; color:var(--text-muted); text-align:center; margin-top:24px; }
+  #mainApp { display:none; }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">NÓOS</div>
+    <p class="login-sub">Acceso Privado</p>
+    <label class="login-label" for="passInput">Contraseña</label>
+    <input type="password" class="login-input" id="passInput" placeholder="••••••••" autocomplete="off"/>
+    <button class="login-btn" onclick="doLogin()">Entrar →</button>
+    <p class="login-error" id="loginError">Contraseña incorrecta</p>
+    <p class="login-hint">Tu buscador científico privado</p>
+  </div>
+</div>
+
+<div id="mainApp">
+<div class="container">
+
+  <header>
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="21" cy="21" r="20" stroke="#7c6aff" stroke-width="0.8" opacity="0.5"/>
+          <circle cx="21" cy="21" r="14" stroke="#7c6aff" stroke-width="0.5" opacity="0.3"/>
+          <path d="M21 6 C14 6,8 13,8 21 C8 29,14 36,21 36" stroke="#7c6aff" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M21 6 C28 6,34 13,34 21 C34 29,28 36,21 36" stroke="#ff6ab0" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="21" cy="21" r="3" fill="#7c6aff" opacity="0.8"/>
+          <line x1="21" y1="6" x2="21" y2="36" stroke="#6affda" stroke-width="0.5" opacity="0.3"/>
+          <line x1="6" y1="21" x2="36" y2="21" stroke="#6affda" stroke-width="0.5" opacity="0.3"/>
+        </svg>
+      </div>
+      <h1>NÓOS</h1>
+    </div>
+    <p class="tagline">Explorador de Ciencia Psicológica & Médica</p>
+  </header>
+
+  <div class="sources-bar">
+    <span class="source-badge active">PubMed</span>
+    <span class="source-badge active">Europe PMC</span>
+    <span class="source-badge active">OpenAlex</span>
+    <span class="source-badge active" style="border-color:#ffc86a;color:#ffc86a">CrossRef</span>
+    <span class="source-badge active" style="border-color:var(--accent2);color:var(--accent2)">arXiv</span>
+    <span class="source-badge active" style="border-color:#6aff96;color:#6aff96">DOAJ</span>
+    <span class="source-badge active" style="border-color:#ffb450;color:#ffb450">ERIC</span>
+    <span class="source-badge active" style="border-color:#c86aff;color:#c86aff">PsyArXiv</span>
+    <span class="source-badge active" style="border-color:#50ffb4;color:#50ffb4">Unpaywall</span>
+    <span class="source-badge active" style="border-color:#ff9650;color:#ff9650">BASE</span>
+    <span class="source-badge active" style="border-color:#80c0ff;color:#80c0ff">SSRN</span>
+    <span class="source-badge active" style="border-color:#ffaaff;color:#ffaaff">WHO IRIS</span>
+    <span class="source-badge active" style="border-color:#aaffaa;color:#aaffaa">DART-Europe</span>
+  </div>
+
+  <div class="search-area">
+    <div class="search-box">
+      <input type="text" class="search-input" id="searchInput"
+        placeholder="¿cómo afecta el trauma infantil al desarrollo cerebral?…"
+        autocomplete="off" spellcheck="false"/>
+      <button class="search-btn" id="searchBtn" onclick="doSearch()">Investigar →</button>
+    </div>
+
+    <div class="filter-section-label">⬡ Psicología & Mente</div>
+    <div class="filter-row">
+      <button class="filter-chip on"  data-filter="psychology">Psicología General</button>
+      <button class="filter-chip on"  data-filter="neuroscience brain">Neurociencia</button>
+      <button class="filter-chip on"  data-filter="psychiatry mental health">Psiquiatría</button>
+      <button class="filter-chip"     data-filter="social psychology behavior group dynamics">Psicología Social</button>
+      <button class="filter-chip"     data-filter="clinical psychology therapy intervention">Clínica</button>
+      <button class="filter-chip"     data-filter="cognitive psychology memory attention executive function">Cognitiva</button>
+      <button class="filter-chip"     data-filter="neuropsychology brain damage cognitive rehabilitation">Neuropsicología</button>
+      <button class="filter-chip"     data-filter="developmental psychology childhood adolescence">Desarrollo</button>
+      <button class="filter-chip"     data-filter="positive psychology resilience wellbeing flourishing">Psicología Positiva</button>
+      <button class="filter-chip"     data-filter="addiction substance abuse dopamine reward brain">Adicciones</button>
+      <button class="filter-chip"     data-filter="sleep disorders memory consolidation circadian rhythm">Sueño & Memoria</button>
+      <button class="filter-chip"     data-filter="trauma PTSD complex stress disorder dissociation">Trauma & PTSD</button>
+      <button class="filter-chip"     data-filter="personality disorder borderline antisocial narcissistic">Trastornos Personalidad</button>
+      <button class="filter-chip"     data-filter="attachment theory relationships bonding early childhood">Apego & Vínculos</button>
+      <button class="filter-chip"     data-filter="hypnosis suggestion altered states trance">Hipnosis & Sugestión</button>
+      <button class="filter-chip"     data-filter="dreams REM sleep consciousness imagery">Sueños & Estados Alterados</button>
+    </div>
+
+    <div class="filter-section-label">🌑 Psicología Oscura</div>
+    <div class="filter-row">
+      <button class="filter-chip dark-chip" data-filter="dark triad narcissism machiavellianism psychopathy subclinical">Tríada Oscura</button>
+      <button class="filter-chip dark-chip" data-filter="psychological manipulation coercive control tactics victim">Manipulación</button>
+      <button class="filter-chip dark-chip" data-filter="criminal psychology antisocial forensic violence offender">Psicología Criminal</button>
+      <button class="filter-chip dark-chip" data-filter="propaganda persuasion mass psychology influence covert">Influencia & Propaganda</button>
+      <button class="filter-chip dark-chip" data-filter="emotional abuse gaslighting narcissistic covert aggression">Abuso Emocional</button>
+      <button class="filter-chip dark-chip" data-filter="pornography adolescents minors exposure brain compulsive">Pornografía & Menores</button>
+      <button class="filter-chip dark-chip" data-filter="radicalization extremism online psychology recruitment">Radicalización</button>
+      <button class="filter-chip dark-chip" data-filter="cult mind control sect undue influence thought reform isolation">Sectas & Control Mental</button>
+      <button class="filter-chip dark-chip" data-filter="serial killer psychopathy homicide violence neuroscience">Asesinos en Serie</button>
+      <button class="filter-chip dark-chip" data-filter="human trafficking psychological impact survivors exploitation">Trata de Personas</button>
+      <button class="filter-chip dark-chip" data-filter="cyberbullying online harassment psychological effects adolescents">Ciberacoso</button>
+      <button class="filter-chip dark-chip" data-filter="eating disorder anorexia bulimia body image distortion">Trastornos Alimentarios</button>
+      <button class="filter-chip dark-chip" data-filter="grooming predatory behavior online child sexual abuse prevention">Grooming</button>
+      <button class="filter-chip dark-chip" data-filter="domestic violence intimate partner abuse cycle psychology">Violencia Doméstica</button>
+      <button class="filter-chip dark-chip" data-filter="sadism aggression cruelty motivations psychology neuroscience">Sadismo & Agresión</button>
+      <button class="filter-chip dark-chip" data-filter="deception lying detection psychology neuroscience">Engaño & Mentira</button>
+      <button class="filter-chip dark-chip" data-filter="obedience authority Milgram conformity social pressure">Obediencia Ciega</button>
+      <button class="filter-chip dark-chip" data-filter="psychopathy power leadership toxic organizational">Liderazgo Tóxico</button>
+    </div>
+
+    <div class="filter-section-label">🔴 Abuso & Trauma</div>
+    <div class="filter-row">
+      <button class="filter-chip abuse-chip" data-filter="child sexual abuse neuroscience memory dissociation survivors">Abuso Sexual Infantil</button>
+      <button class="filter-chip abuse-chip" data-filter="institutional abuse church orphanage military psychological">Abuso Institucional</button>
+      <button class="filter-chip abuse-chip" data-filter="religious spiritual abuse psychological harm recovery">Abuso Religioso & Espiritual</button>
+      <button class="filter-chip abuse-chip" data-filter="psychiatric medical abuse overdiagnosis overmedication harm">Abuso Médico & Psiquiátrico</button>
+      <button class="filter-chip abuse-chip" data-filter="workplace mobbing bullying burnout psychological severe">Abuso Laboral & Mobbing</button>
+      <button class="filter-chip abuse-chip" data-filter="digital abuse sextortion surveillance partner control technology">Abuso Digital</button>
+      <button class="filter-chip abuse-chip" data-filter="psychological torture techniques effects survivors recovery">Tortura Psicológica</button>
+      <button class="filter-chip abuse-chip" data-filter="foster care system abuse neglect children psychological">Abuso en Sistema de Acogida</button>
+      <button class="filter-chip abuse-chip" data-filter="nonconsensual human experiments unethical research psychology history">Experimentos Humanos No Éticos</button>
+      <button class="filter-chip abuse-chip" data-filter="traumatic memory false memory victims abuse psychology">Memoria Traumática & Falsos Recuerdos</button>
+      <button class="filter-chip abuse-chip" data-filter="Stockholm syndrome trauma bonding captivity psychology">Síndrome de Estocolmo</button>
+      <button class="filter-chip abuse-chip" data-filter="dissociation dissociative identity disorder trauma survival mechanism">Disociación como Supervivencia</button>
+      <button class="filter-chip abuse-chip" data-filter="intergenerational trauma epigenetics inherited psychological effects">Trauma Intergeneracional</button>
+      <button class="filter-chip abuse-chip" data-filter="police brutality community psychological impact trauma">Abuso Policial & Comunidades</button>
+    </div>
+
+    <div class="filter-section-label">⚡ Temas Polémicos & Esenciales</div>
+    <div class="filter-row">
+      <button class="filter-chip controversial-chip" data-filter="neuromarketing advertising brain manipulation consumer decision">Neuromarketing</button>
+      <button class="filter-chip controversial-chip" data-filter="mass surveillance psychological effects privacy anxiety population">Vigilancia Masiva & Psicología</button>
+      <button class="filter-chip controversial-chip" data-filter="consumerism psychological manipulation debt emotional advertising">Psicología del Consumismo</button>
+      <button class="filter-chip controversial-chip" data-filter="algorithm social media psychological manipulation behavior change">Algoritmos & Manipulación</button>
+      <button class="filter-chip controversial-chip" data-filter="paraphilia sexual deviation trauma origin psychology">Parafilias & Origen</button>
+      <button class="filter-chip controversial-chip" data-filter="infidelity psychology attachment betrayal brain neuroscience">Infidelidad & Vínculos</button>
+      <button class="filter-chip controversial-chip" data-filter="celibacy abstinence brain effects psychology forced vs chosen">Celibato & Cerebro</button>
+      <button class="filter-chip controversial-chip" data-filter="gender identity neuroscience brain biology social construction">Identidad de Género & Neurociencia</button>
+      <button class="filter-chip controversial-chip" data-filter="dictator authoritarian leader psychology power narcissism">Psicología de Dictadores</button>
+      <button class="filter-chip controversial-chip" data-filter="genocide dehumanization psychology mass atrocity obedience">Genocidio & Deshumanización</button>
+      <button class="filter-chip controversial-chip" data-filter="social class cognitive differences inequality brain development">Clase Social & Cognición</button>
+      <button class="filter-chip controversial-chip" data-filter="intelligence genetics heritability IQ controversy race">Inteligencia & Genética</button>
+      <button class="filter-chip controversial-chip" data-filter="lobotomy psychosurgery history effects modern applications">Psicocirugía & Lobotomía</button>
+      <button class="filter-chip controversial-chip" data-filter="war combat soldier PTSD psychology killing moral injury">Psicología de la Guerra</button>
+      <button class="filter-chip controversial-chip" data-filter="conspiracy belief psychology cognitive bias motivated reasoning">Teorías Conspirativas</button>
+      <button class="filter-chip controversial-chip" data-filter="religion spirituality brain psychology mental health effects">Religión & Psicología</button>
+      <button class="filter-chip controversial-chip" data-filter="solitary confinement isolation extreme brain effects psychology">Aislamiento Extremo & Cerebro</button>
+      <button class="filter-chip controversial-chip" data-filter="organized crime psychology hierarchy loyalty violence">Crimen Organizado & Psicología</button>
+    </div>
+
+    <div class="filter-section-label">🕵️ Poder, Control & Lo Oculto</div>
+    <div class="filter-row">
+      <button class="filter-chip dark-chip" data-filter="MKUltra CIA mind control declassified experiments psychology">MKUltra & Experimentos Militares</button>
+      <button class="filter-chip dark-chip" data-filter="pharmaceutical industry suppressed studies data manipulation clinical trials hidden">Big Pharma & Estudios Suprimidos</button>
+      <button class="filter-chip dark-chip" data-filter="institutional child sexual abuse networks power cover-up psychology perpetrators elite">Pedofilia Institucional & Redes de Poder</button>
+      <button class="filter-chip dark-chip" data-filter="neuroscience social control propaganda government media population manipulation">Control Social & Neurociencia</button>
+      <button class="filter-chip dark-chip" data-filter="mass surveillance psychological effects population anxiety chilling behavior">Vigilancia Masiva & Psicología</button>
+      <button class="filter-chip dark-chip" data-filter="human trafficking networks perpetrators psychology recruitment methods victims">Tráfico Humano & Perpetradores</button>
+      <button class="filter-chip dark-chip" data-filter="elite power psychology impunity accountability absence narcissism">Abuso de Poder en Élites</button>
+      <button class="filter-chip dark-chip" data-filter="war combat soldier moral injury killing psychology PTSD">Psicología de la Guerra</button>
+      <button class="filter-chip dark-chip" data-filter="organized crime mafia hierarchy psychology loyalty violence control">Crimen Organizado & Poder</button>
+      <button class="filter-chip dark-chip" data-filter="solitary confinement isolation extreme brain neurological psychological effects">Aislamiento Extremo & Cerebro</button>
+      <button class="filter-chip dark-chip" data-filter="covert operations psychological warfare state sponsored violence history">Guerra Psicológica Estatal</button>
+      <button class="filter-chip dark-chip" data-filter="corporate crime white collar psychology impunity harm cover">Crimen Corporativo & Impunidad</button>
+    </div>
+
+    <div class="filter-section-label">🧪 Ciencia Emergente & Olvidada</div>
+    <div class="filter-row">
+      <button class="filter-chip sci-chip" data-filter="preliminary study psychology preprint early findings emerging">Estudios Preliminares</button>
+      <button class="filter-chip sci-chip" data-filter="replication crisis psychology failed replications hidden findings">Crisis de Replicación</button>
+      <button class="filter-chip sci-chip" data-filter="suppressed research censored psychology banned studies history">Investigación Suprimida</button>
+      <button class="filter-chip sci-chip" data-filter="fringe unconventional unorthodox psychology theory evidence">Psicología No Convencional</button>
+      <button class="filter-chip sci-chip" data-filter="publication bias negative results null findings psychology">Resultados Negativos & Sesgo Editorial</button>
+      <button class="filter-chip sci-chip" data-filter="forgotten historical psychology research obsolete rediscovered">Psicología Olvidada & Redescubierta</button>
+      <button class="filter-chip sci-chip" data-filter="case study rare disorder unusual psychology single subject">Casos Raros & Trastornos Inusuales</button>
+      <button class="filter-chip sci-chip" data-filter="indigenous non-western cultural psychology mental health neglected">Psicología No Occidental</button>
+      <button class="filter-chip sci-chip" data-filter="Latin America psychology research Spanish Portuguese neglected">Investigación Latinoamericana</button>
+      <button class="filter-chip sci-chip" data-filter="doctoral thesis psychology unpublished dissertation rare findings">Tesis Doctorales Inéditas</button>
+      <button class="filter-chip sci-chip" data-filter="small sample qualitative case report emerging evidence psychology">Evidencia Emergente & Pequeña Escala</button>
+      <button class="filter-chip sci-chip" data-filter="retracted study psychology controversy disputed findings">Estudios Controvertidos & Retractados</button>
+      <button class="filter-chip sci-chip" data-filter="field report NGO humanitarian psychology conflict zone">Reportes de Campo & ONG</button>
+      <button class="filter-chip sci-chip" data-filter="historical psychology experiment ethics violation forgotten legacy">Experimentos Históricos Olvidados</button>
+    </div>
+
+    <div class="filter-section-label">🔬 Ciencia & Sociedad</div>
+    <div class="filter-row">
+      <button class="filter-chip sci-chip" data-filter="epigenetics mental health hereditary stress gene expression">Epigenética</button>
+      <button class="filter-chip sci-chip" data-filter="microbiome gut brain axis mental health depression anxiety">Microbioma & Cerebro</button>
+      <button class="filter-chip sci-chip" data-filter="gender differences psychology brain sex cognitive">Diferencias de Género</button>
+      <button class="filter-chip sci-chip" data-filter="poverty socioeconomic mental health brain development">Pobreza & Psicología</button>
+      <button class="filter-chip sci-chip" data-filter="social media depression anxiety youth screen time algorithm">Redes Sociales & Salud</button>
+      <button class="filter-chip sci-chip" data-filter="loneliness isolation health effects chronic social">Soledad & Aislamiento</button>
+      <button class="filter-chip sci-chip" data-filter="psychedelics therapy depression MDMA psilocybin ketamine">Psicodélicos & Terapia</button>
+      <button class="filter-chip sci-chip" data-filter="meditation mindfulness neuroscience brain structural changes">Meditación & Cerebro</button>
+      <button class="filter-chip sci-chip" data-filter="consciousness altered states perception awareness neural">Conciencia</button>
+      <button class="filter-chip sci-chip" data-filter="artificial intelligence psychology behavior human AI">IA & Comportamiento</button>
+      <button class="filter-chip sci-chip" data-filter="neuroplasticity learning brain change experience">Neuroplasticidad</button>
+      <button class="filter-chip sci-chip" data-filter="moral psychology ethics decision making">Psicología Moral</button>
+      <button class="filter-chip sci-chip" data-filter="pain pleasure neuroscience reward suffering brain">Placer & Dolor Neural</button>
+      <button class="filter-chip sci-chip" data-filter="animal behavior comparative psychology human evolution">Comportamiento Animal Comparado</button>
+      <button class="filter-chip sci-chip" data-filter="money financial decision making psychology behavioral economics">Psicología del Dinero</button>
+      <button class="filter-chip sci-chip" data-filter="mass psychology crowd behavior collective emotion">Psicología de Masas</button>
+    </div>
+  </div>
+
+  <div id="results">
+    <div class="hero-state">
+      <p class="hero-label">Búsquedas sugeridas</p>
+      <div class="hero-suggestions">
+        <span class="suggestion-pill" onclick="setQuery(this)">dark triad covert narcissism manipulation tactics</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">cult mind control undue influence thought reform</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">childhood trauma brain development long term effects</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">institutional abuse church psychological impact survivors</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">neuromarketing consumer decision brain manipulation advertising</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">solitary confinement isolation extreme brain psychological effects</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">obedience authority Milgram destructive behavior social</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">intergenerational trauma epigenetics inherited psychological</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">psilocybin therapy depression clinical trials results</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">algorithm social media psychological manipulation behavior</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">psychopathy neuroscience amygdala brain structure</span>
+        <span class="suggestion-pill" onclick="setQuery(this)">genocide dehumanization psychology ordinary people atrocity</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<footer>
+  NÓOS &nbsp;·&nbsp;
+  <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank">PubMed</a> ·
+  <a href="https://europepmc.org" target="_blank">Europe PMC</a> ·
+  <a href="https://openalex.org" target="_blank">OpenAlex</a> ·
+  <a href="https://crossref.org" target="_blank">CrossRef</a> ·
+  <a href="https://arxiv.org" target="_blank">arXiv</a> ·
+  <a href="https://doaj.org" target="_blank">DOAJ</a> ·
+  <a href="https://eric.ed.gov" target="_blank">ERIC</a> ·
+  <a href="https://psyarxiv.com" target="_blank">PsyArXiv</a> ·
+  <a href="https://unpaywall.org" target="_blank">Unpaywall</a> ·
+  <a href="https://base-search.net" target="_blank">BASE</a> ·
+  <a href="https://ssrn.com" target="_blank">SSRN</a> ·
+  <a href="https://iris.who.int" target="_blank">WHO IRIS</a> ·
+  <a href="https://dart-europe.org" target="_blank">DART-Europe</a>
+</footer>
+
+<script>
+// ── Cursor ────────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+const ring   = document.getElementById('cursorRing');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove', e => {
+  mx=e.clientX; my=e.clientY;
+  cursor.style.left=mx-4+'px'; cursor.style.top=my-4+'px';
+});
+(function animRing(){
+  rx+=(mx-rx)*0.15; ry+=(my-ry)*0.15;
+  ring.style.left=rx-16+'px'; ring.style.top=ry-16+'px';
+  requestAnimationFrame(animRing);
+})();
+
+// ── Chips ─────────────────────────────────────────────────
+document.querySelectorAll('.filter-chip').forEach(c =>
+  c.addEventListener('click', () => c.classList.toggle('on'))
+);
+
+function setQuery(el) {
+  document.getElementById('searchInput').value = el.textContent.trim();
+  doSearch();
+}
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+// ── Source maps ───────────────────────────────────────────
+const sourceMap = {
+  pubmed:'src-pubmed', europe:'src-europe', openalex:'src-openalex',
+  crossref:'src-crossref', arxiv:'src-arxiv', doaj:'src-doaj',
+  eric:'src-eric', psyarxiv:'src-psyarxiv', unpaywall:'src-unpaywall',
+  base:'src-base', ssrn:'src-ssrn', whoiris:'src-whoiris', dart:'src-dart'
+};
+const sourceLabel = {
+  pubmed:'PubMed', europe:'Europe PMC', openalex:'OpenAlex',
+  crossref:'CrossRef', arxiv:'arXiv', doaj:'DOAJ',
+  eric:'ERIC', psyarxiv:'PsyArXiv', unpaywall:'Unpaywall',
+  base:'BASE', ssrn:'SSRN', whoiris:'WHO IRIS', dart:'DART-Europe'
+};
+
+// ── Loading ───────────────────────────────────────────────
+function showLoading() {
+  const r = document.getElementById('results');
+  const msgs = [
+    'Consultando PubMed & Europe PMC…',
+    'Explorando OpenAlex — 200M+ estudios…',
+    'Buscando en CrossRef & arXiv…',
+    'Rastreando DOAJ, ERIC & PsyArXiv…',
+    'Desenterrando lo que nadie ha leído — BASE & Unpaywall…',
+    'Consultando SSRN, WHO IRIS & DART-Europe…',
+    'Analizando estudios relevantes…'
+  ];
+  let i=0;
+  r.innerHTML=`<div class="spinner-wrap"><div class="spinner"></div><div class="spinner-text" id="loadMsg">${msgs[0]}</div></div>`;
+  return setInterval(()=>{
+    i=(i+1)%msgs.length;
+    const m=document.getElementById('loadMsg');
+    if(m) m.textContent=msgs[i];
+  },1200);
+}
+
+// ── Main search ───────────────────────────────────────────
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  const activeFilters = [...document.querySelectorAll('.filter-chip.on')].map(c=>c.dataset.filter);
+  const filterStr = activeFilters.length ? activeFilters.join(' ') : 'psychology psychiatry neuroscience';
+
+  const loadInterval = showLoading();
+
+  const [r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13] = await Promise.allSettled([
+    searchPubMed(query, filterStr),
+    searchEurope(query, filterStr),
+    searchOpenAlex(query, filterStr),
+    searchCrossRef(query, filterStr),
+    searchArXiv(query, filterStr),
+    searchDOAJ(query, filterStr),
+    searchERIC(query, filterStr),
+    searchPsyArXiv(query, filterStr),
+    searchUnpaywall(query, filterStr),
+    searchBASE(query, filterStr),
+    searchSSRN(query, filterStr),
+    searchWHOIRIS(query, filterStr),
+    searchDART(query, filterStr),
+  ]);
+
+  clearInterval(loadInterval);
+
+  let all = [];
+  [r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13].forEach(r => {
+    if (r.status==='fulfilled' && Array.isArray(r.value)) all.push(...r.value);
+  });
+
+  // Deduplicate by title
+  const seen = new Set();
+  all = all.filter(item => {
+    const key = item.title.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,50);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  // Sort by year desc
+  all.sort((a,b)=>(b.year||0)-(a.year||0));
+  all = all.slice(0,20);
+
+  renderResults(all, query);
+}
+
+// ── PubMed ────────────────────────────────────────────────
+async function searchPubMed(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${q}&retmax=5&sort=relevance&retmode=json`);
+    const data = await res.json();
+    const ids = data.esearchresult?.idlist||[];
+    if(!ids.length) return [];
+    const sumRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json`);
+    const sumData = await sumRes.json();
+    const result = sumData.result;
+    return ids.map(id=>{
+      const item=result[id]; if(!item) return null;
+      const authors=(item.authors||[]).slice(0,3).map(a=>a.name).join(', ');
+      return { source:'pubmed', title:item.title||'Sin título', authors:authors+(item.authors?.length>3?' et al.':''), abstract:'', year:item.pubdate?parseInt(item.pubdate):null, journal:item.source||'', link:`https://pubmed.ncbi.nlm.nih.gov/${id}/`, citations:null };
+    }).filter(Boolean);
+  } catch(e){return[];}
+}
+
+// ── Europe PMC ────────────────────────────────────────────
+async function searchEurope(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${q}&resultType=core&pageSize=4&format=json&sort=relevance`);
+    const data = await res.json();
+    return (data.resultList?.result||[]).map(p=>({
+      source:'europe', title:p.title||'Sin título',
+      authors:p.authorString?p.authorString.slice(0,80)+'…':'',
+      abstract:p.abstractText?p.abstractText.slice(0,220)+'…':'',
+      year:p.pubYear?parseInt(p.pubYear):null, journal:p.journalTitle||'',
+      link:p.doi?`https://doi.org/${p.doi}`:`https://europepmc.org/article/${p.source}/${p.id}`,
+      citations:p.citedByCount||null
+    }));
+  } catch(e){return[];}
+}
+
+// ── OpenAlex ──────────────────────────────────────────────
+async function searchOpenAlex(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.openalex.org/works?search=${q}&per-page=4&sort=relevance_score:desc&mailto=noos@research.app`);
+    const data = await res.json();
+    return (data.results||[]).map(p=>{
+      const link=p.doi||p.primary_location?.landing_page_url||`https://openalex.org/${p.id}`;
+      const authors=(p.authorships||[]).slice(0,3).map(a=>a.author?.display_name).filter(Boolean).join(', ');
+      return { source:'openalex', title:p.title||'Sin título', authors:authors+(p.authorships?.length>3?' et al.':''), abstract:p.abstract_inverted_index?rebuildAbstract(p.abstract_inverted_index,220):'', year:p.publication_year, journal:p.primary_location?.source?.display_name||'', link, citations:p.cited_by_count };
+    });
+  } catch(e){return[];}
+}
+
+function rebuildAbstract(idx,max){
+  try{
+    const words={};
+    for(const[w,pos] of Object.entries(idx)) pos.forEach(p=>words[p]=w);
+    const text=Object.keys(words).sort((a,b)=>a-b).map(k=>words[k]).join(' ');
+    return text.slice(0,max)+(text.length>max?'…':'');
+  }catch(e){return'';}
+}
+
+// ── CrossRef ──────────────────────────────────────────────
+async function searchCrossRef(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.crossref.org/works?query=${q}&rows=4&sort=relevance&select=title,author,abstract,published,container-title,DOI,is-referenced-by-count`);
+    const data = await res.json();
+    return (data.message?.items||[]).map(p=>{
+      const authors=(p.author||[]).slice(0,3).map(a=>`${a.given||''} ${a.family||''}`.trim()).filter(Boolean).join(', ');
+      const year=p.published?.['date-parts']?.[0]?.[0]||null;
+      const title=Array.isArray(p.title)?p.title[0]:(p.title||'Sin título');
+      const journal=Array.isArray(p['container-title'])?p['container-title'][0]:(p['container-title']||'');
+      return { source:'crossref', title, authors:authors+(p.author?.length>3?' et al.':''), abstract:p.abstract?p.abstract.replace(/<[^>]+>/g,'').slice(0,220)+'…':'', year, journal, link:p.DOI?`https://doi.org/${p.DOI}`:'', citations:p['is-referenced-by-count']||null };
+    }).filter(p=>p.link);
+  } catch(e){return[];}
+}
+
+// ── arXiv ─────────────────────────────────────────────────
+async function searchArXiv(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://export.arxiv.org/api/query?search_query=all:${q}&max_results=3&sortBy=relevance`);
+    const text = await res.text();
+    const xml = new DOMParser().parseFromString(text,'application/xml');
+    return [...xml.querySelectorAll('entry')].map(e=>{
+      const authors=[...e.querySelectorAll('author name')].slice(0,3).map(a=>a.textContent).join(', ');
+      const published=e.querySelector('published')?.textContent||'';
+      return { source:'arxiv', title:e.querySelector('title')?.textContent?.trim()||'Sin título', authors:authors+([...e.querySelectorAll('author')].length>3?' et al.':''), abstract:(e.querySelector('summary')?.textContent?.trim()||'').slice(0,220)+'…', year:published?parseInt(published.slice(0,4)):null, journal:'arXiv preprint', link:e.querySelector('id')?.textContent?.trim()||'', citations:null };
+    });
+  } catch(e){return[];}
+}
+
+// ── DOAJ ──────────────────────────────────────────────────
+async function searchDOAJ(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://doaj.org/api/search/articles/${q}?pageSize=4&sort=relevance`);
+    const data = await res.json();
+    return (data.results||[]).map(p=>{
+      const bib=p.bibjson||{};
+      const authors=(bib.author||[]).slice(0,3).map(a=>a.name).filter(Boolean).join(', ');
+      const doi=(bib.identifier||[]).find(i=>i.type==='doi')?.id;
+      const link=doi?`https://doi.org/${doi}`:(bib.link?.[0]?.url||'');
+      return { source:'doaj', title:bib.title||'Sin título', authors:authors+(bib.author?.length>3?' et al.':''), abstract:bib.abstract?bib.abstract.slice(0,220)+'…':'', year:bib.year?parseInt(bib.year):null, journal:bib.journal?.title||'', link, citations:null };
+    }).filter(p=>p.link);
+  } catch(e){return[];}
+}
+
+// ── ERIC ──────────────────────────────────────────────────
+async function searchERIC(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.ies.ed.gov/eric/?search=${q}&format=json&rows=4&fl=title,author,description,publicationdateyear,sourceid,id`);
+    const data = await res.json();
+    return (data.response?.docs||[]).map(p=>({
+      source:'eric', title:p.title||'Sin título',
+      authors:Array.isArray(p.author)?p.author.slice(0,3).join(', ')+(p.author.length>3?' et al.':''):(p.author||''),
+      abstract:p.description?p.description.slice(0,220)+'…':'',
+      year:p.publicationdateyear?parseInt(p.publicationdateyear):null,
+      journal:p.sourceid||'', link:`https://eric.ed.gov/?id=${p.id}`, citations:null
+    }));
+  } catch(e){return[];}
+}
+
+// ── PsyArXiv ──────────────────────────────────────────────
+async function searchPsyArXiv(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.osf.io/v2/preprints/?filter[provider]=psyarxiv&filter[subjects]=${q}&page[size]=4&format=json`);
+    const data = await res.json();
+    return (data.data||[]).map(p=>{
+      const attrs=p.attributes||{};
+      const title=attrs.title||'Sin título';
+      const link=`https://psyarxiv.com/${p.id}/`;
+      const year=attrs.date_published?parseInt(attrs.date_published.slice(0,4)):null;
+      return { source:'psyarxiv', title, authors:'', abstract:attrs.description?attrs.description.slice(0,220)+'…':'', year, journal:'PsyArXiv Preprint', link, citations:null };
+    });
+  } catch(e){return[];}
+}
+
+// ── Unpaywall (via CrossRef DOI lookup) ───────────────────
+async function searchUnpaywall(query, filters) {
+  try {
+    // Search CrossRef first to get DOIs, then check Unpaywall for free versions
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.crossref.org/works?query=${q}&rows=4&sort=relevance&select=title,author,published,container-title,DOI,is-referenced-by-count`);
+    const data = await res.json();
+    const items = data.message?.items||[];
+    const results = [];
+    for (const p of items) {
+      if (!p.DOI) continue;
+      try {
+        const uRes = await fetch(`https://api.unpaywall.org/v2/${p.DOI}?email=noos@research.app`);
+        const uData = await uRes.json();
+        const freeUrl = uData.best_oa_location?.url_for_pdf || uData.best_oa_location?.url || null;
+        if (!freeUrl) continue;
+        const authors=(p.author||[]).slice(0,3).map(a=>`${a.given||''} ${a.family||''}`.trim()).filter(Boolean).join(', ');
+        const year=p.published?.['date-parts']?.[0]?.[0]||null;
+        const title=Array.isArray(p.title)?p.title[0]:(p.title||'Sin título');
+        results.push({ source:'unpaywall', title, authors:authors+(p.author?.length>3?' et al.':''), abstract:'', year, journal:Array.isArray(p['container-title'])?p['container-title'][0]:'', link:freeUrl, citations:p['is-referenced-by-count']||null });
+      } catch(e2){continue;}
+    }
+    return results;
+  } catch(e){return[];}
+}
+
+// ── BASE Bielefeld ────────────────────────────────────────
+async function searchBASE(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi?func=PerformSearch&query=${q}&hits=4&offset=0&format=json`);
+    const data = await res.json();
+    return (data.response?.docs||[]).map(p=>({
+      source:'base', title:p.dctitle||'Sin título',
+      authors:Array.isArray(p.dccreator)?p.dccreator.slice(0,3).join(', ')+(p.dccreator.length>3?' et al.':''):(p.dccreator||''),
+      abstract:p.dcdescription?p.dcdescription.slice(0,220)+'…':'',
+      year:p.dcyear?parseInt(p.dcyear):null,
+      journal:p.dcsource||'',
+      link:Array.isArray(p.dcidentifier)?p.dcidentifier[0]:(p.dcidentifier||''),
+      citations:null
+    })).filter(p=>p.link);
+  } catch(e){return[];}
+}
+
+// ── SSRN ──────────────────────────────────────────────────
+async function searchSSRN(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://api.crossref.org/works?query=${q}&rows=4&sort=relevance&filter=type:posted-content&select=title,author,abstract,published,container-title,DOI,is-referenced-by-count`);
+    const data = await res.json();
+    return (data.message?.items||[]).filter(p=>p.DOI&&p.DOI.includes('ssrn')).map(p=>{
+      const authors=(p.author||[]).slice(0,3).map(a=>`${a.given||''} ${a.family||''}`.trim()).filter(Boolean).join(', ');
+      const year=p.published?.['date-parts']?.[0]?.[0]||null;
+      const title=Array.isArray(p.title)?p.title[0]:(p.title||'Sin título');
+      return { source:'ssrn', title, authors:authors+(p.author?.length>3?' et al.':''), abstract:p.abstract?p.abstract.replace(/<[^>]+>/g,'').slice(0,220)+'…':'', year, journal:'SSRN Preprint', link:`https://doi.org/${p.DOI}`, citations:p['is-referenced-by-count']||null };
+    });
+  } catch(e){return[];}
+}
+
+// ── WHO IRIS ──────────────────────────────────────────────
+async function searchWHOIRIS(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://apps.who.int/iris/rest/discover?query=${q}&rpp=4&sort_by=score&order=desc`);
+    const data = await res.json();
+    return (data['search-results']?.['entry']||[]).map(p=>{
+      const title=p['dc:title']||p.title||'Sin título';
+      const link=p.link||p['dc:identifier']||'';
+      const year=p['dc:date']?parseInt(p['dc:date'].slice(0,4)):null;
+      return { source:'whoiris', title, authors:p['dc:creator']||'', abstract:p['dc:description']?p['dc:description'].slice(0,220)+'…':'', year, journal:'WHO IRIS', link, citations:null };
+    }).filter(p=>p.link);
+  } catch(e){return[];}
+}
+
+// ── DART-Europe (tesis doctorales) ────────────────────────
+async function searchDART(query, filters) {
+  try {
+    const q = encodeURIComponent(`${query} ${filters}`);
+    const res = await fetch(`https://www.dart-europe.org/api/?query=${q}&rows=4&wt=json`);
+    const data = await res.json();
+    return (data.response?.docs||[]).map(p=>({
+      source:'dart', title:p.title||'Sin título',
+      authors:Array.isArray(p.author)?p.author.slice(0,3).join(', '):(p.author||''),
+      abstract:p.description?p.description.slice(0,220)+'…':'',
+      year:p.date_?parseInt(p.date_.slice(0,4)):null,
+      journal:'Tesis Doctoral',
+      link:p.url||p.identifier||'',
+      citations:null
+    })).filter(p=>p.link);
+  } catch(e){return[];}
+}
+
+// ── Render ────────────────────────────────────────────────
+function renderResults(results, query) {
+  const r = document.getElementById('results');
+  if (!results.length) {
+    r.innerHTML=`<div class="empty-state"><div class="empty-icon">🔬</div><p class="empty-title">Sin resultados encontrados</p><p class="empty-sub">Intenta reformular tu búsqueda o usa términos en inglés para mayor alcance.</p></div>`;
+    return;
+  }
+  let html=`<div class="results-meta"><div class="results-count"><span>${results.length}</span> estudios encontrados para "${query}"</div><div class="sort-label">ordenado por año & relevancia</div></div>`;
+  results.forEach((item,i)=>{
+    const delay=i*0.05;
+    const srcClass=sourceMap[item.source]||'src-pubmed';
+    const srcName=sourceLabel[item.source]||item.source;
+    html+=`
+      <div class="result-card" style="animation-delay:${delay}s">
+        <div class="card-top">
+          <span class="card-number">${String(i+1).padStart(2,'0')}</span>
+          <div style="flex:1">
+            <p class="card-title"><a href="${item.link}" target="_blank" rel="noopener">${item.title}</a></p>
+            ${item.authors?`<p class="card-authors">${item.authors}</p>`:''}
+            ${item.abstract?`<p class="card-abstract">${item.abstract}</p>`:''}
+          </div>
+          <span class="card-source ${srcClass}">${srcName}</span>
+        </div>
+        <div class="card-footer">
+          ${item.year?`<span class="card-meta">${item.year}</span>`:''}
+          ${item.journal?`<span class="card-meta"><span class="dot"></span>${item.journal}</span>`:''}
+          ${item.citations!=null?`<span class="card-meta"><span class="dot"></span>${item.citations.toLocaleString()} citas</span>`:''}
+          <a href="${item.link}" target="_blank" rel="noopener" class="card-link">Ver estudio →</a>
+        </div>
+      </div>`;
+  });
+  r.innerHTML=html;
+}
+
+// ── Login ─────────────────────────────────────────────────
+const PASS_HASH='e74fd321cff3191f8b54efc9e418b27d1088a27e08af65c6274a47cbdbb2edde';
+
+async function hashPassword(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin(){
+  const val=document.getElementById('passInput').value;
+  const hash=await hashPassword(val);
+  if(hash===PASS_HASH){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    sessionStorage.setItem('noos_auth','1');
+  } else {
+    const err=document.getElementById('loginError');
+    err.classList.add('show');
+    document.getElementById('passInput').value='';
+    document.getElementById('passInput').focus();
+    setTimeout(()=>err.classList.remove('show'),3000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(sessionStorage.getItem('noos_auth')==='1'){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+  }
+  document.getElementById('passInput')?.addEventListener('keydown',e=>{
+    if(e.key==='Enter') doLogin();
+  });
+});
+</script>
+</body>
+</html>
